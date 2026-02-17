@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: iOS Capacitor Build
+    name: iOS Capacitor Build (App Store IPA)
     max_build_duration: 60
 
     environment:
@@ -19,18 +19,17 @@ workflows:
       - name: Sync Capacitor iOS
         script: npx cap sync ios
 
-      # (Optional) debug να δούμε ότι υπάρχει το ExportOptions.plist στο CI
-      - name: Debug files
+      - name: Debug files (sanity check)
         script: |
           ls -la ios/App
-          ls -la ios/App/ExportOptions.plist || true
+          ls -la ios/App/ExportOptions.plist
 
-      - name: Apply code signing profiles
+      - name: Apply code signing profiles (Codemagic)
         script: |
           cd ios/App
           xcode-project use-profiles --project App.xcodeproj
 
-      - name: Build iOS archive (Manual signing)
+      - name: Build iOS archive
         script: |
           cd ios/App
           xcodebuild \
@@ -40,9 +39,6 @@ workflows:
             -sdk iphoneos \
             -archivePath build/App.xcarchive \
             DEVELOPMENT_TEAM=$APPLE_TEAM_ID \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="app22450_appstore" \
             archive
 
       - name: Export IPA (App Store)

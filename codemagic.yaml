@@ -29,7 +29,47 @@ workflows:
           cd ios/App
           xcode-project use-profiles --project App.xcodeproj
 
-      - name: Build iOS archive
+      - name: Resolve App Store profile UUID for bundle id
+        script: |
+          set -e
+          BUNDLE_ID="gr.studiom.app22450"
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+
+          echo "== Profiles directory =="
+          ls -la "$PROFILES_DIR" || true
+
+          FOUND_UUID=""
+          FOUND_NAME=""
+
+          for p in "$PROFILES_DIR"/*.mobileprovision; do
+            security cms -D -i "$p" > /tmp/profile.plist
+
+            APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/profile.plist 2>/dev/null || true)
+            NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist 2>/dev/null || true)
+            UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /tmp/profile.plist 2>/dev/null || true)
+
+            # match ...<TeamID>.gr.studiom.app22450
+            if echo "$APP_ID" | grep -q "\.${BUNDLE_ID}$"; then
+              FOUND_UUID="$UUID"
+              FOUND_NAME="$NAME"
+              break
+            fi
+          done
+
+          if [ -z "$FOUND_UUID" ]; then
+            echo "ERROR: Δεν βρέθηκε provisioning profile που να ταιριάζει στο bundle id $BUNDLE_ID"
+            exit 1
+          fi
+
+          echo "Using profile:"
+          echo "NAME=$FOUND_NAME"
+          echo "UUID=$FOUND_UUID"
+
+          # make available to next steps
+          echo "IOS_PROFILE_UUID=$FOUND_UUID" >> "$CM_ENV"
+          echo "IOS_PROFILE_NAME=$FOUND_NAME" >> "$CM_ENV"
+
+      - name: Build iOS archive (force App Store signing)
         script: |
           cd ios/App
           xcodebuild \
@@ -39,6 +79,9 @@ workflows:
             -sdk iphoneos \
             -archivePath build/App.xcarchive \
             DEVELOPMENT_TEAM=$APPLE_TEAM_ID \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE="$IOS_PROFILE_UUID" \
             archive
 
       - name: Export IPA (App Store)

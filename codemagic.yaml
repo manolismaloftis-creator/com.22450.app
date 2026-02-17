@@ -19,17 +19,31 @@ workflows:
       - name: Sync Capacitor iOS
         script: npx cap sync ios
 
+      - name: Install CocoaPods
+        script: |
+          cd ios/App
+          pod install
+
       - name: Build iOS archive
         script: |
           cd ios/App
           xcodebuild \
-            -project App.xcodeproj \
+            -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
-            -sdk iphoneos \
             -archivePath build/App.xcarchive \
             DEVELOPMENT_TEAM=$APPLE_TEAM_ID \
+            -allowProvisioningUpdates \
             archive
 
+      - name: Export IPA
+        script: |
+          cd ios/App
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath build
+
     artifacts:
-      - ios/App/build/**/*.xcarchive
+      - ios/App/build/*.ipa
+      - ios/App/build/*.xcarchive

@@ -19,7 +19,7 @@ workflows:
       - name: Sync Capacitor iOS
         script: npx cap sync ios
 
-      - name: Apply Codemagic code signing profiles
+      - name: Set up code signing
         script: |
           cd ios/App
           xcode-project use-profiles --project App.xcodeproj
@@ -28,15 +28,14 @@ workflows:
         script: |
           cd ios/App
           xcodebuild \
-            -project App.xcodeproj \
+            -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
-            -sdk iphoneos \
             -archivePath build/App.xcarchive \
-            DEVELOPMENT_TEAM=$APPLE_TEAM_ID \
+            -allowProvisioningUpdates \
             archive
 
-      - name: Export IPA (App Store)
+      - name: Export IPA
         script: |
           cd ios/App
           xcodebuild -exportArchive \
@@ -46,4 +45,3 @@ workflows:
 
     artifacts:
       - ios/App/build/export/*.ipa
-      - ios/App/build/**/*.xcarchive

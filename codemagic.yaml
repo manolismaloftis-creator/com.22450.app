@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: iOS Capacitor Build (App Store IPA)
+    name: iOS Capacitor Build (App Store IPA + Upload)
     max_build_duration: 60
 
     environment:
@@ -31,8 +31,6 @@ workflows:
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
           echo "== Certificates dir =="
           ls -la "$HOME/Library/MobileDevice/Certificates" || true
-          echo "== ExportOptions.plist in repo (optional) =="
-          ls -la ios/App/ExportOptions.plist || true
 
       - name: Apply code signing profiles (Codemagic)
         script: |
@@ -60,21 +58,15 @@ workflows:
           TEAM_ID="$APPLE_TEAM_ID"
           PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
 
-          echo "== Installed provisioning profiles =="
-          ls -la "$PROFILES_DIR" || true
-
           FOUND_NAME=""
-          FOUND_UUID=""
 
           for p in "$PROFILES_DIR"/*.mobileprovision; do
             security cms -D -i "$p" > /tmp/profile.plist
             APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/profile.plist 2>/dev/null || true)
             NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist 2>/dev/null || true)
-            UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /tmp/profile.plist 2>/dev/null || true)
 
             if echo "$APP_ID" | grep -q "\.${BUNDLE_ID}$"; then
               FOUND_NAME="$NAME"
-              FOUND_UUID="$UUID"
               break
             fi
           done
@@ -83,10 +75,6 @@ workflows:
             echo "ERROR: Δεν βρέθηκε App Store provisioning profile που να ταιριάζει στο bundle id $BUNDLE_ID"
             exit 1
           fi
-
-          echo "Using provisioning profile for export:"
-          echo "NAME=$FOUND_NAME"
-          echo "UUID=$FOUND_UUID"
 
           cat > ExportOptions.generated.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -108,9 +96,6 @@ workflows:
           </plist>
           EOF
 
-          echo "== Generated ExportOptions.generated.plist =="
-          cat ExportOptions.generated.plist
-
       - name: Export IPA (App Store)
         script: |
           cd ios/App
@@ -119,16 +104,42 @@ workflows:
             -exportOptionsPlist ExportOptions.generated.plist \
             -exportPath build/export
 
+      - name: Upload IPA to App Store Connect (no Codemagic publishing)
+        script: |
+          set -e
+          cd ios/App
+
+          IPA_PATH=$(ls -1 build/export/*.ipa | head -n 1)
+          echo "IPA: $IPA_PATH"
+
+          # Write the API key to the expected location for Apple tools
+          mkdir -p "$HOME/.private_keys"
+          KEY_ID="$APP_STORE_CONNECT_KEY_ID"
+          ISSUER_ID="$APP_STORE_CONNECT_ISSUER_ID"
+
+          # The file MUST be named AuthKey_<KEY_ID>.p8
+          echo "$APP_STORE_CONNECT_PRIVATE_KEY" > "$HOME/.private_keys/AuthKey_${KEY_ID}.p8"
+          chmod 600 "$HOME/.private_keys/AuthKey_${KEY_ID}.p8"
+
+          # Try altool first (works on many Xcode versions). If missing, fallback to iTMSTransporter.
+          if xcrun altool --help >/dev/null 2>&1; then
+            echo "Uploading with altool..."
+            xcrun altool --upload-app \
+              --type ios \
+              --file "$IPA_PATH" \
+              --apiKey "$KEY_ID" \
+              --apiIssuer "$ISSUER_ID" \
+              --verbose
+          else
+            echo "altool not found, uploading with iTMSTransporter..."
+            xcrun iTMSTransporter -m upload \
+              -assetFile "$IPA_PATH" \
+              -apiKey "$KEY_ID" \
+              -apiIssuer "$ISSUER_ID" \
+              -v informational
+          fi
+
     artifacts:
       - ios/App/build/export/*.ipa
       - ios/App/build/**/*.xcarchive
       - ios/App/ExportOptions.generated.plist
-
-    publishing:
-      app_store_connect:
-        auth: api_key
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        key_id: $APP_STORE_CONNECT_KEY_ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: false
-        submit_to_app_store: true

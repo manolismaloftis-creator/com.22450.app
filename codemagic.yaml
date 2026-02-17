@@ -112,16 +112,39 @@ workflows:
           IPA_PATH=$(ls -1 build/export/*.ipa | head -n 1)
           echo "IPA: $IPA_PATH"
 
-          # Write the API key to the expected location for Apple tools
-          mkdir -p "$HOME/.private_keys"
           KEY_ID="$APP_STORE_CONNECT_KEY_ID"
           ISSUER_ID="$APP_STORE_CONNECT_ISSUER_ID"
 
-          # The file MUST be named AuthKey_<KEY_ID>.p8
-          echo "$APP_STORE_CONNECT_PRIVATE_KEY" > "$HOME/.private_keys/AuthKey_${KEY_ID}.p8"
+          mkdir -p "$HOME/.private_keys"
+
+          # Write the .p8 safely:
+          # - convert literal "\n" to real newlines (if stored that way)
+          # - remove Windows CRLF (\r)
+          python3 - <<'PY'
+          import os
+          key_id = os.environ["APP_STORE_CONNECT_KEY_ID"]
+          raw = os.environ["APP_STORE_CONNECT_PRIVATE_KEY"]
+
+          if "\\n" in raw and "BEGIN PRIVATE KEY" in raw:
+            raw = raw.replace("\\n", "\n")
+
+          raw = raw.replace("\r", "")
+
+          path = os.path.expanduser(f"~/.private_keys/AuthKey_{key_id}.p8")
+          with open(path, "w", newline="\n") as f:
+            f.write(raw.strip() + "\n")
+          print("Wrote:", path)
+          PY
+
           chmod 600 "$HOME/.private_keys/AuthKey_${KEY_ID}.p8"
 
-          # Try altool first (works on many Xcode versions). If missing, fallback to iTMSTransporter.
+          # Non-secret sanity check
+          echo "Key file first line:"
+          head -n 1 "$HOME/.private_keys/AuthKey_${KEY_ID}.p8"
+          echo "Key file last line:"
+          tail -n 1 "$HOME/.private_keys/AuthKey_${KEY_ID}.p8"
+
+          # Upload
           if xcrun altool --help >/dev/null 2>&1; then
             echo "Uploading with altool..."
             xcrun altool --upload-app \

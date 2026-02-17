@@ -19,6 +19,11 @@ workflows:
       - name: Sync Capacitor iOS
         script: npx cap sync ios
 
+      - name: Apply code signing profiles
+        script: |
+          cd ios/App
+          xcode-project use-profiles
+
       - name: Build iOS archive
         script: |
           cd ios/App
@@ -29,6 +34,7 @@ workflows:
             -sdk iphoneos \
             -archivePath build/App.xcarchive \
             DEVELOPMENT_TEAM=$APPLE_TEAM_ID \
+            CODE_SIGN_STYLE=Manual \
             archive
 
       - name: Export IPA (App Store)

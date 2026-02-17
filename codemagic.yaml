@@ -31,8 +31,8 @@ workflows:
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
           echo "== Certificates dir =="
           ls -la "$HOME/Library/MobileDevice/Certificates" || true
-          echo "== ExportOptions.plist =="
-          ls -la ios/App/ExportOptions.plist
+          echo "== ExportOptions.plist in repo (optional) =="
+          ls -la ios/App/ExportOptions.plist || true
 
       - name: Apply code signing profiles (Codemagic)
         script: |
@@ -51,14 +51,75 @@ workflows:
             DEVELOPMENT_TEAM=$APPLE_TEAM_ID \
             archive
 
+      - name: Generate ExportOptions.plist from installed App Store profile
+        script: |
+          set -e
+          cd ios/App
+
+          BUNDLE_ID="gr.studiom.app22450"
+          TEAM_ID="$APPLE_TEAM_ID"
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+
+          echo "== Installed provisioning profiles =="
+          ls -la "$PROFILES_DIR" || true
+
+          FOUND_NAME=""
+          FOUND_UUID=""
+
+          for p in "$PROFILES_DIR"/*.mobileprovision; do
+            security cms -D -i "$p" > /tmp/profile.plist
+            APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/profile.plist 2>/dev/null || true)
+            NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist 2>/dev/null || true)
+            UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /tmp/profile.plist 2>/dev/null || true)
+
+            if echo "$APP_ID" | grep -q "\.${BUNDLE_ID}$"; then
+              FOUND_NAME="$NAME"
+              FOUND_UUID="$UUID"
+              break
+            fi
+          done
+
+          if [ -z "$FOUND_NAME" ]; then
+            echo "ERROR: Δεν βρέθηκε App Store provisioning profile που να ταιριάζει στο bundle id $BUNDLE_ID"
+            exit 1
+          fi
+
+          echo "Using provisioning profile for export:"
+          echo "NAME=$FOUND_NAME"
+          echo "UUID=$FOUND_UUID"
+
+          cat > ExportOptions.generated.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>${TEAM_ID}</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key>
+              <string>${FOUND_NAME}</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+
+          echo "== Generated ExportOptions.generated.plist =="
+          cat ExportOptions.generated.plist
+
       - name: Export IPA (App Store)
         script: |
           cd ios/App
           xcodebuild -exportArchive \
             -archivePath build/App.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
+            -exportOptionsPlist ExportOptions.generated.plist \
             -exportPath build/export
 
     artifacts:
       - ios/App/build/export/*.ipa
       - ios/App/build/**/*.xcarchive
+      - ios/App/ExportOptions.generated.plist

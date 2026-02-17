@@ -4,6 +4,8 @@ workflows:
     max_build_duration: 60
 
     environment:
+      groups:
+        - ios_credentials
       node: 22
       xcode: latest
 
@@ -26,6 +28,7 @@ workflows:
             -configuration Release \
             -sdk iphoneos \
             -archivePath build/App.xcarchive \
+            DEVELOPMENT_TEAM=$APPLE_TEAM_ID \
             archive
 
     artifacts:

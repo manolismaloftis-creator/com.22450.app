@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">22450.gr</string>
+    <string name="exit_confirm_message">Θέλετε να εξέλθετε από την εφαρμογή;</string>
+    <string name="exit_confirm_no">Όχι</string>
+    <string name="exit_confirm_yes">Ναι</string>
+    <string name="title_activity_main">22450.gr</string>
+    <string name="package_name">gr.studiom.app22450</string>
+    <string name="custom_url_scheme">gr.studiom.app22450</string>
+</resources>

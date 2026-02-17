@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="exit_confirm_message">Vuoi uscire dall\'applicazione?</string>
+    <string name="exit_confirm_no">No</string>
+    <string name="exit_confirm_yes">Sì</string>
+</resources>

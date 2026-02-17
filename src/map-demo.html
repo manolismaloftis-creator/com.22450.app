@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="el" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Χάρτης - 22450.gr</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="./css/style.css" />
+    <style>
+      #map-page { min-height: 100vh; display: flex; flex-direction: column; }
+      #map { flex: 1; width: 100%; min-height: 60vh; }
+      .map-header { padding: 1rem; background: #2DB8B8; color: #fff; display: flex; align-items: center; justify-content: space-between; }
+      .map-header a { color: #fff; text-decoration: underline; }
+    </style>
+  </head>
+  <body id="map-page">
+    <header class="map-header">
+      <a href="./index.html">← Πίσω</a>
+      <span>Δοκιμή χάρτη</span>
+    </header>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/22450-map-user-location.js?v=3"></script>
+  </body>
+</html>

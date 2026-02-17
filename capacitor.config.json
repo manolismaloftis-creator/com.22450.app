@@ -1,0 +1,7 @@
+{
+  "appId": "gr.studiom.app22450",
+  "appName": "22450.gr",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "allowNavigation": ["22450.gr", "www.22450.gr", "*"]
+}

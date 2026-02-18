@@ -34,26 +34,36 @@ workflows:
 
       - name: Apply code signing profiles (Codemagic)
         script: |
+          set -e
           cd ios/App
           xcode-project use-profiles --project App.xcodeproj
 
-      # ✅ NEW: Set Build number to 2
       - name: Set iOS build number (Build 2)
         script: |
+          set -e
           cd ios/App
-          agvtool new-version -all 2
-          echo "CURRENT_PROJECT_VERSION now:"
-          agvtool what-version
 
-      # ✅ NEW: Sanity check privacy keys (prevents ITMS-90683)
-      - name: Verify Info.plist privacy keys exist
+          # Preferred: agvtool (requires Apple Generic Versioning enabled)
+          if agvtool new-version -all 2; then
+            echo "agvtool OK"
+            agvtool what-version
+          else
+            echo "agvtool failed, applying fallback by editing Info.plist CFBundleVersion..."
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 2" App/App/Info.plist
+            echo "CFBundleVersion is now:"
+            /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" App/App/Info.plist
+          fi
+
+      - name: Verify Info.plist privacy keys exist (prevents ITMS-90683)
         script: |
+          set -e
           /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" ios/App/App/Info.plist
 
       - name: Build iOS archive
         script: |
+          set -e
           cd ios/App
           xcodebuild \
             -project App.xcodeproj \
@@ -113,6 +123,7 @@ workflows:
 
       - name: Export IPA (App Store)
         script: |
+          set -e
           cd ios/App
           xcodebuild -exportArchive \
             -archivePath build/App.xcarchive \
@@ -132,6 +143,9 @@ workflows:
 
           mkdir -p "$HOME/.private_keys"
 
+          # Write the .p8 safely:
+          # - convert literal "\n" to real newlines (if stored that way)
+          # - remove Windows CRLF (\r)
           python3 - <<'PY'
           import os
           key_id = os.environ["APP_STORE_CONNECT_KEY_ID"]
@@ -150,11 +164,13 @@ workflows:
 
           chmod 600 "$HOME/.private_keys/AuthKey_${KEY_ID}.p8"
 
+          # Non-secret sanity check
           echo "Key file first line:"
           head -n 1 "$HOME/.private_keys/AuthKey_${KEY_ID}.p8"
           echo "Key file last line:"
           tail -n 1 "$HOME/.private_keys/AuthKey_${KEY_ID}.p8"
 
+          # Upload
           if xcrun altool --help >/dev/null 2>&1; then
             echo "Uploading with altool..."
             xcrun altool --upload-app \
